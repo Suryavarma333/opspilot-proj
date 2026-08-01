@@ -20,6 +20,7 @@ mkdir -p "$audit_dir"
     app_dir="/opt/opspilot-dashboard"
     web_dir="/var/www/opspilot-dashboard"
     unit_file="/etc/systemd/system/opspilot-dashboard-agent.service"
+    integration_config_file="/etc/opspilot-dashboard/integrations.env"
     backup_dir="/var/backups/opspilot-dashboard-v1.0/$timestamp"
     changed=0
     ai_module_existed=0
@@ -131,6 +132,26 @@ mkdir -p "$audit_dir"
         curl --silent --show-error --fail --max-time 5 \
             http://127.0.0.1:3100/api/v1/dashboard
     )"
+
+    current_integrations_json="$(
+        python3 - "$current_json" <<'PYTHON'
+import json
+import sys
+
+integrations = json.loads(sys.argv[1])["integrations"]
+assert integrations["mode"] == "draft"
+assert integrations["external_writes_enabled"] is False
+print(json.dumps(integrations, separators=(",", ":"), sort_keys=True))
+PYTHON
+    )"
+
+    if sudo test -f "$integration_config_file"; then
+        current_integration_config_checksum="$(
+            sudo sha256sum "$integration_config_file" | awk '{print $1}'
+        )"
+    else
+        current_integration_config_checksum="missing"
+    fi
 
     current_release="$(
         python3 - "$current_json" <<'PYTHON'
@@ -300,7 +321,13 @@ PYTHON
             http://127.0.0.1/opspilot/api/v1/dashboard
     )"
 
-    python3 - "$dashboard_json" "$dashboard_html" "$command_json" "$history_json" "$ai_json" <<'PYTHON'
+    python3 - \
+        "$dashboard_json" \
+        "$dashboard_html" \
+        "$command_json" \
+        "$history_json" \
+        "$ai_json" \
+        "$current_integrations_json" <<'PYTHON'
 import json
 import sys
 
@@ -309,6 +336,21 @@ html = sys.argv[2]
 command = json.loads(sys.argv[3])
 history = json.loads(sys.argv[4])
 ai = json.loads(sys.argv[5])
+previous_integrations = json.loads(sys.argv[6])
+current_integrations = data["integrations"]
+
+
+def preserved_integration_configuration(status):
+    return {
+        "mode": status["mode"],
+        "workflow": status["workflow"],
+        "jira": status["jira"],
+        "google_chat": status["google_chat"],
+        "meet": status["meet"],
+        "roster": status["roster"],
+        "live_ready": status["live_ready"],
+        "external_writes_enabled": status["external_writes_enabled"],
+    }
 
 assert data["service"] == "opspilot-dashboard-agent"
 assert data["release"] == "v1.0.0"
@@ -320,9 +362,11 @@ assert any(item["mount"] == "/" for item in data["mounts"])
 assert isinstance(data["sessions"], list)
 assert len(data["commands"]) == 172
 assert "ai_signal" in data
-assert data["integrations"]["mode"] == "draft"
-assert data["integrations"]["jira"]["project_key"] == "OPS"
-assert data["integrations"]["google_chat"]["space"] == "NOC-Alerts"
+assert current_integrations["mode"] == "draft"
+assert current_integrations["external_writes_enabled"] is False
+assert preserved_integration_configuration(current_integrations) == (
+    preserved_integration_configuration(previous_integrations)
+)
 assert command["status"] == "completed"
 assert command["command"] == "uptime"
 assert command["exit_code"] == 0
@@ -348,8 +392,26 @@ print("Autonomous RCA signal contract: PASS")
 print("On-demand structured RCA query: PASS")
 print("Real uptime command execution: PASS")
 print("Historical range query: PASS")
+print("Configured integration targets preserved: PASS")
+print("Integration mode remains DRAFT: PASS")
+print("External writes remain DISABLED: PASS")
 print("Part 2 integration draft workflow: PASS")
 PYTHON
+
+    if sudo test -f "$integration_config_file"; then
+        final_integration_config_checksum="$(
+            sudo sha256sum "$integration_config_file" | awk '{print $1}'
+        )"
+    else
+        final_integration_config_checksum="missing"
+    fi
+
+    if [ "$final_integration_config_checksum" != "$current_integration_config_checksum" ]; then
+        echo "ERROR: Integration configuration file changed during upgrade"
+        exit 1
+    fi
+
+    echo "Integration configuration file preserved: PASS"
 
     systemctl is-active --quiet nginx
     systemctl is-active --quiet opspilot.service
