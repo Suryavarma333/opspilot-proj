@@ -1,0 +1,42 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+integrations.env
+*credentials*
+*secret*
+*token*
+*.pem
+*.key
+
+# Runtime state and evidence
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.db
+state.json
+current-oncall.csv
+roster-schedule.local.csv
+*.log
+*.pid
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+
+# Node and frontend output
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+
+# Release archives and local editor state
+*.tar.gz
+*.zip
+.DS_Store
+.idea/
+.vscode/

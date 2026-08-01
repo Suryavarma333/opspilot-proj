@@ -1,0 +1,4 @@
+shift,primary_engineer,start_time,end_time,team,service,email,chat_user_id
+M,Morning Engineer,06:00,14:00,NOC,Linux,,
+E,Evening Engineer,14:00,22:00,NOC,Linux,,
+N,Night Engineer,22:00,06:00,NOC,Linux,,

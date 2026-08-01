@@ -1,0 +1,43 @@
+[Unit]
+Description=OpsPilot live dashboard telemetry sidecar
+Documentation=file:/opt/opspilot-dashboard/README.md
+After=network.target opspilot.service
+Wants=opspilot.service
+
+[Service]
+Type=simple
+User=opspilot
+Group=opspilot
+WorkingDirectory=/opt/opspilot-dashboard
+StateDirectory=opspilot-dashboard-agent
+StateDirectoryMode=0750
+Environment=OPSPILOT_METRICS_DB=/var/lib/opspilot-dashboard-agent/metrics.sqlite3
+Environment=OPSPILOT_INTEGRATION_DB=/var/lib/opspilot-dashboard-agent/integrations.sqlite3
+EnvironmentFile=-/etc/opspilot-dashboard/integrations.env
+ExecStart=/usr/bin/python3 /opt/opspilot-dashboard/opspilot_dashboard_agent.py
+Restart=on-failure
+RestartSec=3s
+TimeoutStartSec=15s
+TimeoutStopSec=10s
+UMask=0027
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

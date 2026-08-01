@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: dashboard/source/package-lock.json
+
+      - name: Verify Python, shell, tests, and checksums
+        run: ./scripts/verify-all.sh
+
+      - name: Build frontend
+        working-directory: dashboard/source
+        run: |
+          npm ci
+          npm run build

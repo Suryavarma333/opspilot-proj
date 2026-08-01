@@ -1,0 +1,13 @@
+[Unit]
+Description=Sample CPU for OpsPilot automatic incident routing
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=20s
+AccuracySec=1s
+RandomizedDelaySec=2s
+Persistent=false
+Unit=opspilot-cpu-alert.service
+
+[Install]
+WantedBy=timers.target
