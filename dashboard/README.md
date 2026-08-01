@@ -27,6 +27,11 @@ npm run build
 Copy the generated `dist/index.html`, `dist/assets/dashboard.js`, and
 `dist/assets/dashboard.css` into `files/`, then regenerate `CHECKSUMS.sha256`.
 
+The Resource activity panel in `source/src/components/ResourceActivityCharts.tsx`
+uses Recharts area charts. Its synchronized hover
+tracker, exact timestamp tooltips, explicit axes, and `15m` through `15d`
+allowlist depend on the timestamps returned by the bundled telemetry sidecar.
+
 ## Deploy
 
 ```bash

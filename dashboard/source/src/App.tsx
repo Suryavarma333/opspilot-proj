@@ -39,6 +39,7 @@ import {
   WeatherSunny24Regular,
   Wrench24Regular,
 } from "@fluentui/react-icons";
+import ResourceActivityCharts, { RESOURCE_HISTORY_WINDOW_MS, type ResourceHistoryRange } from "./components/ResourceActivityCharts";
 
 type View =
   | "pulse"
@@ -64,6 +65,7 @@ type CommandSpec = {
 };
 
 type MetricSample = {
+  timestamp?: number;
   cpu: number;
   memory: number;
   disk: number;
@@ -74,10 +76,10 @@ type MetricSample = {
 
 type NodeState = "online" | "warning" | "offline";
 type Theme = "dark" | "light";
-type HistoryRange = "15m" | "30m" | "1h" | "3h" | "6h";
+type HistoryRange = ResourceHistoryRange;
 
-const historyRanges: HistoryRange[] = ["15m", "30m", "1h", "3h", "6h"];
-const historyMinutes: Record<HistoryRange, number> = { "15m": 15, "30m": 30, "1h": 60, "3h": 180, "6h": 360 };
+const historyRanges: HistoryRange[] = ["15m", "30m", "1h", "3h", "6h", "12h", "24h", "7d", "15d"];
+const historyWindowMs = RESOURCE_HISTORY_WINDOW_MS;
 
 const commandGroups: Record<string, [string, string][]> = {
   "Host & OS": [
@@ -755,12 +757,15 @@ function FluentSpark({ values, color }: { values: number[]; color: string }) {
   return <svg className="f-spark" viewBox="0 0 180 54" preserveAspectRatio="none" aria-hidden="true"><path d={`${d} L180,54 L0,54Z`} fill={`${color}1f`} /><path d={d} stroke={color} strokeWidth="2.5" fill="none" /></svg>;
 }
 function buildDemoHistory(range: HistoryRange): MetricSample[] {
-  const points = range === "15m" ? 36 : range === "30m" ? 48 : range === "1h" ? 60 : 72;
+  const pointsByRange: Record<HistoryRange, number> = { "15m": 48, "30m": 60, "1h": 72, "3h": 90, "6h": 108, "12h": 120, "24h": 144, "7d": 168, "15d": 180 };
+  const points = pointsByRange[range];
+  const now = Date.now();
   const last = initialSamples.at(-1)!;
   return Array.from({ length: points }, (_, index) => {
     const phase = index / Math.max(1, points - 1);
     const wave = Math.sin(phase * Math.PI * 5.5) + Math.sin(phase * Math.PI * 13) * .35;
     return {
+      timestamp: now - historyWindowMs[range] + phase * historyWindowMs[range],
       cpu: Math.max(4, Math.min(92, Math.round(last.cpu + wave * 11 + (phase - .5) * 4))),
       memory: Math.max(20, Math.min(94, Math.round(last.memory + Math.sin(phase * Math.PI * 2.2) * 3))),
       disk: last.disk,
@@ -885,21 +890,7 @@ function FluentMetricCard({ label, value, detail, icon, color, values, tone, onO
 }
 
 function FluentChart({ samples, range, loading = false }: { samples: MetricSample[]; range: HistoryRange; loading?: boolean }) {
-  const cpu = path(samples.map(item => item.cpu), 720, 220);
-  const memory = path(samples.map(item => item.memory), 720, 220);
-  const load = path(samples.map(item => item.load * 32), 720, 220);
-  const minutes = historyMinutes[range];
-  const tick = (position: number) => { const remaining = Math.round(minutes * (1 - position)); return remaining === 0 ? "Now" : remaining >= 60 ? `-${+(remaining / 60).toFixed(1)}h` : `-${remaining}m`; };
-  return <div className="f-chart">
-    <header><div><span><i className="cpu" />CPU <b>{samples.at(-1)!.cpu}%</b></span><span><i className="memory" />Memory <b>{samples.at(-1)!.memory}%</b></span><span><i className="load" />Load <b>{samples.at(-1)!.load}</b></span></div><em><i />{loading ? "QUERYING HISTORY" : `${range} · exact interval`}</em></header>
-    <div className="f-chart-canvas"><svg viewBox="0 0 720 220" preserveAspectRatio="none" role="img" aria-label="CPU, memory, and system load over the last 30 minutes">
-      <defs><linearGradient id="fluentCpu" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#0f6cbd" stopOpacity=".27" /><stop offset="1" stopColor="#0f6cbd" stopOpacity="0" /></linearGradient></defs>
-      {[0,55,110,165,220].map(y => <line key={y} x1="0" x2="720" y1={y} y2={y} className="f-gridline" />)}
-      <path d={`${cpu} L720,220 L0,220Z`} fill="url(#fluentCpu)" /><path d={cpu} className="f-cpu-line" /><path d={memory} className="f-memory-line" /><path d={load} className="f-load-line" />
-      <line x1="472" x2="472" y1="0" y2="220" className="f-event-line" />
-    </svg><span className="f-annotation">nginx config reload · 09:24</span>{loading && <span className="history-loading">Loading historical samples…</span>}</div>
-    <footer>{[0,.2,.4,.6,.8,1].map(position => <span key={position}>{tick(position)}</span>)}</footer>
-  </div>;
+  return <ResourceActivityCharts samples={samples} range={range} loading={loading} />;
 }
 
 function FluentPanel({ eyebrow, title, action, children, className = "" }: { eyebrow: string; title: string; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
@@ -1047,7 +1038,7 @@ export default function FluentOpsPilot() {
   const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => { document.documentElement.dataset.fluentTheme = theme; }, [theme]);
-  useEffect(() => { const controller = new AbortController(); let cancelled = false; const load = async () => { setHistoryLoading(true); try { if (window.location.hostname.endsWith("chatgpt.site")) { setHistorySamples(buildDemoHistory(historyRange)); return; } const response = await fetch(`api/v1/dashboard?range=${historyRange}`, { cache: "no-store", signal: controller.signal }); if (!response.ok) throw new Error(`history returned HTTP ${response.status}`); const data = await response.json(); const rows = Array.isArray(data.history?.samples) ? data.history.samples : []; const mapped = rows.map((item: Record<string, unknown>) => ({ cpu: Number(item.cpu) || 0, memory: Number(item.memory) || 0, disk: Number(item.disk) || 0, load: Number(item.load) || 0, rx: (Number(item.rx) || 0) / 1024, tx: (Number(item.tx) || 0) / 1024 })); if (!cancelled && mapped.length) setHistorySamples(mapped); } catch (error) { if (!cancelled && (error as Error).name !== "AbortError") setHistorySamples(current => current.length ? current : buildDemoHistory(historyRange)); } finally { if (!cancelled) setHistoryLoading(false); } }; void load(); const timer = window.setInterval(load, 5000); return () => { cancelled = true; controller.abort(); window.clearInterval(timer); }; }, [historyRange]);
+  useEffect(() => { const controller = new AbortController(); let cancelled = false; const load = async () => { setHistoryLoading(true); try { if (window.location.hostname.endsWith("chatgpt.site")) { setHistorySamples(buildDemoHistory(historyRange)); return; } const response = await fetch(`api/v1/dashboard?range=${historyRange}`, { cache: "no-store", signal: controller.signal }); if (!response.ok) throw new Error(`history returned HTTP ${response.status}`); const data = await response.json(); const rows = Array.isArray(data.history?.samples) ? data.history.samples : []; const mapped = rows.map((item: Record<string, unknown>) => ({ timestamp: Date.parse(String(item.timestamp)) || Date.now(), cpu: Number(item.cpu) || 0, memory: Number(item.memory) || 0, disk: Number(item.disk) || 0, load: Number(item.load) || 0, rx: (Number(item.rx) || 0) / 1024, tx: (Number(item.tx) || 0) / 1024 })); if (!cancelled && mapped.length) setHistorySamples(mapped); } catch (error) { if (!cancelled && (error as Error).name !== "AbortError") setHistorySamples(current => current.length ? current : buildDemoHistory(historyRange)); } finally { if (!cancelled) setHistoryLoading(false); } }; void load(); const timer = window.setInterval(load, 5000); return () => { cancelled = true; controller.abort(); window.clearInterval(timer); }; }, [historyRange]);
   useEffect(() => {
     let consecutiveFailures = 0;
     let cancelled = false;
@@ -1057,6 +1048,7 @@ export default function FluentOpsPilot() {
         if (!response.ok) throw new Error(`telemetry returned HTTP ${response.status}`);
         const data = await response.json();
         const next: MetricSample = {
+          timestamp: Date.now(),
           cpu: Math.round(Number(data.cpu?.percent) || 0),
           memory: Math.round(Number(data.memory?.percent) || 0),
           disk: Math.round(Number(data.disk?.percent) || 0),

@@ -33,18 +33,22 @@ Backend: `MetricStore`, `metric_sampler()`, and `RANGE_CONFIG` in
 
 - Samples are written every five seconds to a SQLite WAL database in the
   systemd-managed state directory.
-- Data is retained for 24 hours.
-- Only `15m`, `30m`, `1h`, `3h`, and `6h` are accepted.
+- Data is retained for 16 days so the full 15-day view remains queryable.
+- Only `15m`, `30m`, `1h`, `3h`, `6h`, `12h`, `24h`, `7d`, and `15d` are
+  accepted.
 - Each range has a fixed server-side aggregation step, preventing expensive or
   attacker-controlled queries.
 - `GET /api/v1/dashboard?range=30m` returns `history.range`,
   `history.step_seconds`, and the exact bucketed samples.
 
 Frontend: `HistoryRange`, `RangeSelector`, and the history-loading effect in
-`source/src/App.tsx`.
+`source/src/App.tsx`, plus the reusable chart component in
+`source/src/components/ResourceActivityCharts.tsx`.
 
 - Changing the interval passes the selected value to the backend.
-- The chart rerenders from the returned historical series, updates its axis,
+- `FluentChart` renders separate CPU, memory, and load area charts with explicit
+  axes, synchronized crosshairs, exact-value tooltips, and per-series gradients.
+- The chart preserves the backend ISO timestamp for accurate date/time labels
   and refreshes the selected range every five seconds.
 
 ## 3. Living interface components

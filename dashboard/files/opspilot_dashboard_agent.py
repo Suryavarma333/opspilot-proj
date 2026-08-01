@@ -45,7 +45,9 @@ MAX_MOUNT_ROWS = 16
 COMMAND_TIMEOUT_SECONDS = 8
 COMMAND_OUTPUT_LIMIT = 65536
 METRIC_SAMPLE_SECONDS = 5
-METRIC_RETENTION_SECONDS = 24 * 60 * 60
+# Keep enough local history for the longest fixed dashboard range. The store
+# remains bounded and is downsampled by RANGE_CONFIG before data reaches React.
+METRIC_RETENTION_SECONDS = 16 * 24 * 60 * 60
 METRICS_DB_PATH = Path(
     os.environ.get(
         "OPSPILOT_METRICS_DB",
@@ -84,6 +86,10 @@ RANGE_CONFIG: dict[str, tuple[int, int]] = {
     "1h": (60 * 60, 20),
     "3h": (3 * 60 * 60, 60),
     "6h": (6 * 60 * 60, 120),
+    "12h": (12 * 60 * 60, 5 * 60),
+    "24h": (24 * 60 * 60, 10 * 60),
+    "7d": (7 * 24 * 60 * 60, 60 * 60),
+    "15d": (15 * 24 * 60 * 60, 2 * 60 * 60),
 }
 
 ALLOWED_COMMANDS = frozenset(
@@ -1536,7 +1542,7 @@ class OpsPilotHandler(BaseHTTPRequestHandler):
                             HTTPStatus.BAD_REQUEST,
                             {
                                 "status": "error",
-                                "message": "range must be one of 15m, 30m, 1h, 3h, 6h",
+                                "message": "range must be one of " + ", ".join(RANGE_CONFIG),
                             },
                         )
                         return

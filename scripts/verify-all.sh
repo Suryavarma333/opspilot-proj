@@ -11,6 +11,7 @@ python3 -m py_compile \
     automation/roster-rotation/files/opspilot-roster-rotation.py \
     maintenance/jira-business-unit-fix/files/business_unit_fix.py
 
+python3 -m unittest discover dashboard/tests -v
 python3 -m unittest discover automation/cpu-alert/tests -v
 python3 automation/roster-rotation/tests/test_rotation.py
 python3 -m unittest discover maintenance/jira-business-unit-fix/tests -v

@@ -10,7 +10,8 @@
     "@fluentui/react-components": "9.74.4",
     "@fluentui/react-icons": "2.0.334",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.6",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "6.0.2",
