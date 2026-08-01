@@ -32,6 +32,13 @@ export type ResourceActivitySample = {
 
 type TelemetryMetric = "cpu" | "memory" | "load";
 
+export type ResourceSpikeSelection = {
+  metric: TelemetryMetric;
+  title: string;
+  timestamp: number;
+  value: number;
+};
+
 const telemetryConfig: Record<TelemetryMetric, { title: string; shortLabel: string; color: string; unit: string; precision: number }> = {
   cpu: { title: "CPU Utilization", shortLabel: "CPU", color: "#0f6cbd", unit: "%", precision: 1 },
   memory: { title: "Memory Usage", shortLabel: "Memory", color: "#8764b8", unit: "%", precision: 1 },
@@ -73,7 +80,7 @@ function TelemetryTooltip({ active, payload, metric }: { active?: boolean; paylo
   </div>;
 }
 
-function TelemetryChartCard({ samples, range, metric }: { samples: ResourceActivitySample[]; range: ResourceHistoryRange; metric: TelemetryMetric }) {
+function TelemetryChartCard({ samples, range, metric, onSpikeSelect }: { samples: ResourceActivitySample[]; range: ResourceHistoryRange; metric: TelemetryMetric; onSpikeSelect?: (selection: ResourceSpikeSelection) => void }) {
   const config = telemetryConfig[metric];
   const values = samples.map(sample => sample[metric]);
   const latest = values.at(-1) ?? 0;
@@ -90,7 +97,12 @@ function TelemetryChartCard({ samples, range, metric }: { samples: ResourceActiv
     </header>
     <div className="f-telemetry-canvas">
       <ResponsiveContainer width="100%" height="100%" debounce={80}>
-        <AreaChart data={samples} syncId="resource-activity" syncMethod="value" margin={{ top: 12, right: 12, bottom: 4, left: 0 }} accessibilityLayer>
+        <AreaChart data={samples} syncId="resource-activity" syncMethod="value" margin={{ top: 12, right: 12, bottom: 4, left: 0 }} accessibilityLayer onClick={(state: unknown) => {
+          const chartState = state as { activePayload?: Array<{ payload?: ResourceActivitySample }> } | null;
+          const sample = chartState?.activePayload?.[0]?.payload;
+          if (!sample || !onSpikeSelect) return;
+          onSpikeSelect({ metric, title: config.title, timestamp: Number(sample.timestamp ?? Date.now()), value: Number(sample[metric]) });
+        }}>
           <defs><linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={config.color} stopOpacity={.38} /><stop offset="62%" stopColor={config.color} stopOpacity={.12} /><stop offset="100%" stopColor={config.color} stopOpacity={.015} /></linearGradient></defs>
           <CartesianGrid stroke="var(--f-line)" strokeDasharray="3 5" vertical={false} />
           <XAxis type="number" dataKey="timestamp" domain={["dataMin", "dataMax"]} scale="time" tickFormatter={value => formatAxisTimestamp(Number(value), range)} tick={{ fill: "var(--f-quiet)", fontSize: 10 }} axisLine={{ stroke: "var(--f-line-strong)" }} tickLine={false} minTickGap={range === "7d" || range === "15d" ? 48 : 36} />
@@ -103,7 +115,7 @@ function TelemetryChartCard({ samples, range, metric }: { samples: ResourceActiv
   </article>;
 }
 
-export default function ResourceActivityCharts({ samples, range, loading = false }: { samples: ResourceActivitySample[]; range: ResourceHistoryRange; loading?: boolean }) {
+export default function ResourceActivityCharts({ samples, range, loading = false, onSpikeSelect }: { samples: ResourceActivitySample[]; range: ResourceHistoryRange; loading?: boolean; onSpikeSelect?: (selection: ResourceSpikeSelection) => void }) {
   const timestampedSamples = useMemo(() => {
     const fallbackStart = Date.now() - RESOURCE_HISTORY_WINDOW_MS[range];
     return samples.map((sample, index) => ({
@@ -115,9 +127,9 @@ export default function ResourceActivityCharts({ samples, range, loading = false
   return <div className="f-telemetry-suite">
     <header className="f-telemetry-toolbar"><span><i />Synchronized hover tracker</span><em>{loading ? "QUERYING HISTORY" : `${range} · ${timestampedSamples.length} samples`}</em></header>
     <section className="f-telemetry-grid">
-      <TelemetryChartCard samples={timestampedSamples} range={range} metric="cpu" />
-      <TelemetryChartCard samples={timestampedSamples} range={range} metric="memory" />
-      <TelemetryChartCard samples={timestampedSamples} range={range} metric="load" />
+      <TelemetryChartCard samples={timestampedSamples} range={range} metric="cpu" onSpikeSelect={onSpikeSelect} />
+      <TelemetryChartCard samples={timestampedSamples} range={range} metric="memory" onSpikeSelect={onSpikeSelect} />
+      <TelemetryChartCard samples={timestampedSamples} range={range} metric="load" onSpikeSelect={onSpikeSelect} />
     </section>
     {loading && <span className="history-loading">Loading historical samples…</span>}
   </div>;

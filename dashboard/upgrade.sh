@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# OpsPilot v0.2.0-v0.8.0 -> v0.9.0 in-place upgrade
+# OpsPilot v0.2.0-v0.9.0 -> v1.0.0 in-place upgrade
 # Preserves nginx, the original API, loopback-only listeners, ownership, and
 # the existing dashboard deployment while adding incident workflow integrations.
 
@@ -10,7 +10,7 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 files_dir="$script_dir/files"
 timestamp="$(date -u +%F-%H%M%S)"
 audit_dir="$HOME/opspilot-lab/audit"
-audit_file="$audit_dir/opspilot-v0.9-upgrade-$timestamp.txt"
+audit_file="$audit_dir/opspilot-v1.0-upgrade-$timestamp.txt"
 
 mkdir -p "$audit_dir"
 
@@ -20,8 +20,9 @@ mkdir -p "$audit_dir"
     app_dir="/opt/opspilot-dashboard"
     web_dir="/var/www/opspilot-dashboard"
     unit_file="/etc/systemd/system/opspilot-dashboard-agent.service"
-    backup_dir="/var/backups/opspilot-dashboard-v0.9/$timestamp"
+    backup_dir="/var/backups/opspilot-dashboard-v1.0/$timestamp"
     changed=0
+    ai_module_existed=0
 
     rollback() {
         status=$?
@@ -35,6 +36,13 @@ mkdir -p "$audit_dir"
                 sudo install -o root -g opspilot -m 0750 \
                     "$backup_dir/opspilot_dashboard_agent.py" \
                     "$app_dir/opspilot_dashboard_agent.py"
+                if sudo test -f "$backup_dir/opspilot_ai_engine.py"; then
+                    sudo install -o root -g opspilot -m 0640 \
+                        "$backup_dir/opspilot_ai_engine.py" \
+                        "$app_dir/opspilot_ai_engine.py"
+                elif [ "$ai_module_existed" -eq 0 ]; then
+                    sudo rm -f -- "$app_dir/opspilot_ai_engine.py"
+                fi
                 sudo install -o root -g opspilot -m 0640 \
                     "$backup_dir/README.md" \
                     "$app_dir/README.md"
@@ -71,7 +79,7 @@ mkdir -p "$audit_dir"
 
     trap rollback EXIT
 
-    echo "### OPSPILOT V0.9 UPGRADE TIME"
+    echo "### OPSPILOT V1.0 UPGRADE TIME"
     date -u
 
     echo
@@ -82,7 +90,9 @@ mkdir -p "$audit_dir"
         sha256sum --check CHECKSUMS.sha256
     )
 
-    python3 -m py_compile "$files_dir/opspilot_dashboard_agent.py"
+    python3 -m py_compile \
+        "$files_dir/opspilot_dashboard_agent.py" \
+        "$files_dir/opspilot_ai_engine.py"
 
     if command -v node >/dev/null 2>&1; then
         node --check "$files_dir/dashboard.js"
@@ -131,11 +141,11 @@ PYTHON
     )"
 
     case "$current_release" in
-        v0.2.0|v0.3.0|v0.4.0|v0.5.0|v0.6.0|v0.7.0|v0.8.0)
+        v0.2.0|v0.3.0|v0.4.0|v0.5.0|v0.6.0|v0.7.0|v0.8.0|v0.9.0)
             echo "Installed dashboard release: PASS | $current_release"
             ;;
-        v0.9.0)
-            echo "OpsPilot v0.9.0 is already installed."
+        v1.0.0)
+            echo "OpsPilot v1.0.0 is already installed."
             echo "No files were changed."
             trap - EXIT
             exit 0
@@ -172,6 +182,12 @@ PYTHON
     sudo install -o root -g root -m 0600 \
         "$app_dir/opspilot_dashboard_agent.py" \
         "$backup_dir/opspilot_dashboard_agent.py"
+    if sudo test -f "$app_dir/opspilot_ai_engine.py"; then
+        ai_module_existed=1
+        sudo install -o root -g root -m 0600 \
+            "$app_dir/opspilot_ai_engine.py" \
+            "$backup_dir/opspilot_ai_engine.py"
+    fi
     sudo install -o root -g root -m 0600 \
         "$app_dir/README.md" \
         "$backup_dir/README.md"
@@ -196,13 +212,16 @@ PYTHON
     echo "Rollback backup: $backup_dir"
 
     echo
-    echo "### INSTALL V0.9 FILES"
+    echo "### INSTALL V1.0 FILES"
 
     changed=1
 
     sudo install -o root -g opspilot -m 0750 \
         "$files_dir/opspilot_dashboard_agent.py" \
         "$app_dir/opspilot_dashboard_agent.py"
+    sudo install -o root -g opspilot -m 0640 \
+        "$files_dir/opspilot_ai_engine.py" \
+        "$app_dir/opspilot_ai_engine.py"
     sudo install -o root -g opspilot -m 0640 \
         "$script_dir/README.md" \
         "$app_dir/README.md"
@@ -234,7 +253,7 @@ PYTHON
             http://127.0.0.1:3100/healthz >/dev/null 2>&1
         then
             agent_ready=1
-            echo "OpsPilot v0.9 agent ready: PASS | attempt=$attempt"
+            echo "OpsPilot v1.0 agent ready: PASS | attempt=$attempt"
             break
         fi
 
@@ -274,7 +293,14 @@ PYTHON
             'http://127.0.0.1/opspilot/api/v1/dashboard?range=15m'
     )"
 
-    python3 - "$dashboard_json" "$dashboard_html" "$command_json" "$history_json" <<'PYTHON'
+    ai_json="$(
+        curl --silent --show-error --fail --max-time 30 \
+            -H 'Content-Type: application/json' \
+            --data '{"action":"ai_query","question":"Which services are currently degraded?"}' \
+            http://127.0.0.1/opspilot/api/v1/dashboard
+    )"
+
+    python3 - "$dashboard_json" "$dashboard_html" "$command_json" "$history_json" "$ai_json" <<'PYTHON'
 import json
 import sys
 
@@ -282,16 +308,18 @@ data = json.loads(sys.argv[1])
 html = sys.argv[2]
 command = json.loads(sys.argv[3])
 history = json.loads(sys.argv[4])
+ai = json.loads(sys.argv[5])
 
 assert data["service"] == "opspilot-dashboard-agent"
-assert data["release"] == "v0.9.0"
+assert data["release"] == "v1.0.0"
 assert isinstance(data["host"]["hostname"], str) and data["host"]["hostname"]
 assert len(data["users"]) >= 1
 assert any(item["username"] == "root" for item in data["users"])
 assert len(data["mounts"]) >= 1
 assert any(item["mount"] == "/" for item in data["mounts"])
 assert isinstance(data["sessions"], list)
-assert len(data["commands"]) >= 171
+assert len(data["commands"]) == 172
+assert "ai_signal" in data
 assert data["integrations"]["mode"] == "draft"
 assert data["integrations"]["jira"]["project_key"] == "OPS"
 assert data["integrations"]["google_chat"]["space"] == "NOC-Alerts"
@@ -301,6 +329,11 @@ assert command["exit_code"] == 0
 assert history["history"]["range"] == "15m"
 assert history["history"]["step_seconds"] == 5
 assert len(history["history"]["samples"]) >= 1
+assert ai["status"] in {"confirmed", "likely", "insufficient_evidence"}
+assert isinstance(ai["root_cause_diagnosis"], str) and ai["root_cause_diagnosis"]
+assert isinstance(ai["evidence"], list)
+assert isinstance(ai["actionable_steps"], list) and ai["actionable_steps"]
+assert isinstance(ai["raw_output"], str)
 
 assert '<div id="root"></div>' in html
 
@@ -310,7 +343,9 @@ print("Live mounted-filesystem inventory: PASS")
 print("React living-server application shell: PASS")
 print("Animated hardware components: PASS")
 print("Working senior-engineer workspaces: PASS")
-print("171 live diagnostic commands: PASS")
+print("172 live diagnostic commands: PASS")
+print("Autonomous RCA signal contract: PASS")
+print("On-demand structured RCA query: PASS")
 print("Real uptime command execution: PASS")
 print("Historical range query: PASS")
 print("Part 2 integration draft workflow: PASS")
@@ -342,7 +377,8 @@ PYTHON
     echo "Network exposure review: PASS"
     echo "Dual light and dark themes: PASS"
     echo "Heartbeat outage alarm: PASS"
-    echo "171 safe command diagnostics: PASS"
+    echo "172 safe command diagnostics: PASS"
+    echo "Structured RCA and forecasting: PASS"
     echo "Jira/Chat/Meet/roster draft integration: PASS"
     echo "Existing live telemetry: PRESERVED"
     echo "Original OpsPilot API v0.1.0: PRESERVED"
@@ -357,13 +393,13 @@ PYTHON
 upgrade_status=${PIPESTATUS[0]}
 
 echo
-echo "OpsPilot v0.9 upgrade exit status: $upgrade_status"
+echo "OpsPilot v1.0 upgrade exit status: $upgrade_status"
 echo "Audit file: $audit_file"
 
 if [ "$upgrade_status" -eq 0 ]; then
-    echo "OpsPilot v0.9 incident-integration console: PASS"
+    echo "OpsPilot v1.0 intelligence console: PASS"
 else
-    echo "OpsPilot v0.9 upgrade stopped and rollback was attempted: REVIEW REQUIRED"
+    echo "OpsPilot v1.0 upgrade stopped and rollback was attempted: REVIEW REQUIRED"
 fi
 
 exit "$upgrade_status"

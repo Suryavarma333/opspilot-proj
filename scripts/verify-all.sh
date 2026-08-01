@@ -7,6 +7,7 @@ cd "$repo_root"
 
 python3 -m py_compile \
     dashboard/files/opspilot_dashboard_agent.py \
+    dashboard/files/opspilot_ai_engine.py \
     automation/cpu-alert/files/opspilot_cpu_alert.py \
     automation/roster-rotation/files/opspilot-roster-rotation.py \
     maintenance/jira-business-unit-fix/files/business_unit_fix.py

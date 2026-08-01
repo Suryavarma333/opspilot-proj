@@ -1,10 +1,10 @@
-# OpsPilot v0.9 implementation map
+# OpsPilot v1.0 implementation map
 
 ## 1. Secure diagnostic execution
 
 Backend: `files/opspilot_dashboard_agent.py`
 
-- `ALLOWED_COMMANDS` contains exactly 171 reviewed read-only command strings.
+- `ALLOWED_COMMANDS` contains exactly 172 reviewed read-only command strings.
 - `run_allowed_command()` rejects anything that is not an exact allowlist match.
 - Arguments are converted to an argv list and executed with
   `subprocess.run(..., shell=False)`.
@@ -89,3 +89,37 @@ unvalidated query expression from the browser.
 - The roster reader accepts a read-only local CSV sync or a directly readable
   Google Sheet CSV export. It will not silently assign the first row; a roster
   row must be explicitly marked active.
+
+## 6. Autonomous RCA and interactive investigation
+
+Backend modules: `files/opspilot_dashboard_agent.py` and
+`files/opspilot_ai_engine.py`.
+
+- `AutonomousRCAManager` observes CPU, memory, disk, per-core system load, and
+  systemd service state. A warning/critical state transition launches one
+  background evidence collection, with a 15-minute repeat cooldown.
+- RCA always gathers the fixed `top -b -n 1`, current-boot priority-3 journal,
+  filesystem, and socket summaries. A chart timestamp also produces a
+  validated +/- five-minute journal query with `shell=False`.
+- Natural-language requests map through deterministic keyword plans to the
+  172-command exact allowlist. The LLM never generates executable shell.
+- `SENIOR_LINUX_RCA_SYSTEM_PROMPT` rejects unsupported causal claims, treats
+  logs as untrusted data, and forces the strict `RCA_JSON_SCHEMA` contract.
+- Provider failure or absent credentials falls back to a local structured RCA
+  response that says when evidence is insufficient.
+
+Frontend component: `source/src/components/OpsPilotIntelligence.tsx`.
+
+- The AI Signal card renders autonomous diagnosis and 24-hour predictive
+  warnings.
+- The Polar Bear opens a floating investigation modal with Root Cause
+  Diagnosis, Evidence, Resolution Theory, Actionable Steps, and raw output.
+- Remediation uses a server-issued one-time approval ID, a two-minute expiry,
+  an exact-command match, an explicit checkbox, and replay prevention.
+
+## 7. Forecasting
+
+Disk and memory predictions use local least-squares regression over recent
+samples. A banner is emitted only when at least six samples span ten minutes,
+the slope is positive, regression confidence is at least 60%, and projected
+exhaustion is within 24 hours. Forecasting never requires an LLM call.

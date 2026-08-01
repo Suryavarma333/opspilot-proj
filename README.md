@@ -34,8 +34,11 @@ application listener.
 | Area | Implementation |
 | --- | --- |
 | Live telemetry | CPU, memory, disk, load, services, processes, users, sessions, mounts, and network state |
-| Diagnostics | 171 exact-match, read-only Linux commands; no arbitrary shell endpoint |
-| History | SQLite WAL telemetry with fixed 15m, 30m, 1h, 3h, and 6h ranges |
+| Diagnostics | 172 exact-match, read-only Linux commands; no arbitrary shell endpoint |
+| History | SQLite WAL telemetry with fixed 15m through 15d ranges |
+| OpsPilot AI | Autonomous RCA, evidence-grounded natural-language investigation, and strict structured JSON |
+| Forecasting | Local linear regression warns when disk or memory may exhaust within 24 hours |
+| Remediation | Fixed action catalog, exact-command dialog, short-lived one-time approval, and draft default |
 | Incident workflow | Draft-first Jira payload, explicit live-mode confirmation, action token, and idempotency ledger |
 | Alert automation | CPU >= 90% for four checks; one incident until recovery below 80% for three checks |
 | On-call routing | Three-shift Asia/Kolkata schedule with atomic CSV updates and full-day coverage validation |

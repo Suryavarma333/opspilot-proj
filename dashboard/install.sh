@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Stage 13 — OpsPilot v0.9 incident-integration dashboard deployment
+# OpsPilot v1.0 intelligence dashboard deployment
 # Target: Ubuntu 22.04 OpsPilot node
 # This installer preserves the existing OpsPilot API on 127.0.0.1:3000,
 # adds a read-only telemetry sidecar on 127.0.0.1:3100, and serves the UI
@@ -98,7 +98,7 @@ mkdir -p "$audit_dir"
 
     trap rollback EXIT
 
-    echo "### STAGE 13 DEPLOYMENT TIME"
+    echo "### OPSPILOT V1.0 DEPLOYMENT TIME"
     date -u
 
     echo
@@ -110,6 +110,7 @@ mkdir -p "$audit_dir"
         "$files_dir/dashboard.js"
         "$files_dir/opspilot-datacenter-login.png"
         "$files_dir/opspilot_dashboard_agent.py"
+        "$files_dir/opspilot_ai_engine.py"
         "$files_dir/opspilot-dashboard-agent.service"
     )
 
@@ -131,7 +132,9 @@ mkdir -p "$audit_dir"
         sha256sum --check CHECKSUMS.sha256
     )
 
-    python3 -m py_compile "$files_dir/opspilot_dashboard_agent.py"
+    python3 -m py_compile \
+        "$files_dir/opspilot_dashboard_agent.py" \
+        "$files_dir/opspilot_ai_engine.py"
     if command -v node >/dev/null 2>&1; then
         node --check "$files_dir/dashboard.js"
         echo "JavaScript syntax: PASS"
@@ -323,6 +326,13 @@ PYTHON
         -o root \
         -g opspilot \
         -m 0640 \
+        "$files_dir/opspilot_ai_engine.py" \
+        "$app_dir/opspilot_ai_engine.py"
+
+    sudo install \
+        -o root \
+        -g opspilot \
+        -m 0640 \
         "$script_dir/README.md" \
         "$app_dir/README.md"
 
@@ -384,7 +394,7 @@ import sys
 data = json.loads(sys.argv[1])
 
 assert data["service"] == "opspilot-dashboard-agent"
-assert data["release"] == "v0.9.0"
+assert data["release"] == "v1.0.0"
 assert isinstance(data["host"]["hostname"], str) and data["host"]["hostname"]
 assert 0 <= data["cpu"]["percent"] <= 100
 assert data["cpu"]["count"] >= 1
@@ -675,9 +685,10 @@ history = json.loads(sys.argv[4])
 site_status = sys.argv[5]
 
 assert dashboard["service"] == "opspilot-dashboard-agent"
-assert dashboard["release"] == "v0.9.0"
+assert dashboard["release"] == "v1.0.0"
 assert isinstance(dashboard["host"]["hostname"], str) and dashboard["host"]["hostname"]
-assert len(dashboard["commands"]) >= 171
+assert len(dashboard["commands"]) == 172
+assert "ai_signal" in dashboard
 assert dashboard["integrations"]["mode"] == "draft"
 assert dashboard["integrations"]["jira"]["project_key"] == "OPS"
 assert dashboard["integrations"]["jira"]["issue_type"] == "INCIDENT"
@@ -698,7 +709,8 @@ print("Dashboard HTML through nginx: PASS")
 print("Dashboard CSS through nginx: PASS")
 print("Dashboard JavaScript through nginx: PASS")
 print("Live telemetry API through nginx: PASS")
-print("171 command catalog through nginx: PASS")
+print("172 command catalog through nginx: PASS")
+print("Structured AI signal through nginx: PASS")
 print("Real uptime command execution: PASS")
 print("Historical range query through nginx: PASS")
 print("Part 2 integration draft workflow: PASS")

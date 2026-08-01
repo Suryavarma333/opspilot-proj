@@ -34,8 +34,10 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import Request, urlopen
 
+from opspilot_ai_engine import AutonomousRCAManager, OpsPilotAIEngine
 
-RELEASE = "v0.9.0"
+
+RELEASE = "v1.0.0"
 LISTEN_ADDRESS = "127.0.0.1"
 LISTEN_PORT = 3100
 SERVICE_NAMES = ("nginx.service", "opspilot.service", "myname.timer")
@@ -67,6 +69,16 @@ JIRA_URL = os.environ.get(
 JIRA_PROJECT_KEY = os.environ.get("OPSPILOT_JIRA_PROJECT_KEY", "OPS").strip().upper()
 JIRA_REQUESTED_LABEL = os.environ.get("OPSPILOT_JIRA_REQUESTED_LABEL", "opspilot").strip()
 JIRA_ISSUE_TYPE = os.environ.get("OPSPILOT_JIRA_ISSUE_TYPE", "INCIDENT").strip()
+# OpsPilot Jira Business Unit fix v1.0.0
+JIRA_BUSINESS_UNIT_FIELD_ID = os.environ.get(
+    "OPSPILOT_JIRA_BUSINESS_UNIT_FIELD_ID", ""
+).strip()
+JIRA_BUSINESS_UNIT_OPTION_ID = os.environ.get(
+    "OPSPILOT_JIRA_BUSINESS_UNIT_OPTION_ID", ""
+).strip()
+JIRA_BUSINESS_UNIT_MULTIPLE = os.environ.get(
+    "OPSPILOT_JIRA_BUSINESS_UNIT_MULTIPLE", "false"
+).strip().lower() == "true"
 GOOGLE_CHAT_SPACE = os.environ.get("OPSPILOT_GOOGLE_CHAT_SPACE", "NOC-Alerts").strip()
 MEET_URL = os.environ.get(
     "OPSPILOT_MEET_URL", "https://meet.google.com/your-bridge"
@@ -133,6 +145,7 @@ mpstat -P ALL 1 1
 pidstat 1 1
 top
 top -b -n 1
+journalctl -p 3 -xb -n 50 --no-pager
 getconf CLK_TCK
 free -h
 free -w -h
@@ -595,6 +608,11 @@ def _adf_document(text: str) -> dict[str, Any]:
 
 
 def _create_jira_issue(draft: dict[str, Any]) -> dict[str, Any]:
+    # Validate the required Jira Business Unit option before dispatch.
+    if not re.fullmatch(r"customfield_[0-9]{1,30}", JIRA_BUSINESS_UNIT_FIELD_ID):
+        raise RuntimeError("Jira Business Unit field is not configured")
+    if not re.fullmatch(r"[0-9]{1,30}", JIRA_BUSINESS_UNIT_OPTION_ID):
+        raise RuntimeError("Jira Business Unit option is not configured")
     project = _jira_project()
     _, response = _external_json(
         "POST",
@@ -608,6 +626,12 @@ def _create_jira_issue(draft: dict[str, Any]) -> dict[str, Any]:
                 "description": _adf_document(draft["description"]),
                 "priority": {"name": draft["priority"]},
                 "labels": ["opspilot", "noc-automation", draft["severity"].lower()],
+                # Required Jira Business Unit field.
+                JIRA_BUSINESS_UNIT_FIELD_ID: (
+                    [{"id": JIRA_BUSINESS_UNIT_OPTION_ID}]
+                    if JIRA_BUSINESS_UNIT_MULTIPLE
+                    else {"id": JIRA_BUSINESS_UNIT_OPTION_ID}
+                ),
             }
         },
     )
@@ -1386,6 +1410,8 @@ class MetricStore:
 
 
 METRIC_STORE = MetricStore(METRICS_DB_PATH)
+AI_ENGINE = OpsPilotAIEngine(run_allowed_command, ALLOWED_COMMANDS)
+RCA_MANAGER = AutonomousRCAManager(AI_ENGINE)
 
 
 class IncidentStore:
@@ -1495,7 +1521,9 @@ def metric_sampler() -> None:
     while True:
         started = time.monotonic()
         try:
-            METRIC_STORE.record(COLLECTOR.snapshot())
+            snapshot = COLLECTOR.snapshot()
+            METRIC_STORE.record(snapshot)
+            RCA_MANAGER.observe(snapshot)
         except Exception as error:  # Keep telemetry API alive if storage fails.
             print(f"metric_store_error={type(error).__name__}: {error}", flush=True)
         elapsed = time.monotonic() - started
@@ -1503,7 +1531,7 @@ def metric_sampler() -> None:
 
 
 class OpsPilotHandler(BaseHTTPRequestHandler):
-    server_version = "OpsPilotDashboard/0.9"
+    server_version = "OpsPilotDashboard/1.0"
     sys_version = ""
 
     def _send_json(self, status: int, payload: dict[str, Any]) -> None:
@@ -1535,6 +1563,7 @@ class OpsPilotHandler(BaseHTTPRequestHandler):
             try:
                 payload = dict(COLLECTOR.snapshot())
                 payload["integrations"] = integration_status()
+                payload["ai_signal"] = RCA_MANAGER.signal()
                 requested_range = parse_qs(parsed.query).get("range", [None])[0]
                 if requested_range is not None:
                     if requested_range not in RANGE_CONFIG:
@@ -1563,6 +1592,9 @@ class OpsPilotHandler(BaseHTTPRequestHandler):
         if path == "/api/v1/integrations/status":
             self._send_json(HTTPStatus.OK, integration_status())
             return
+        if path == "/api/v1/ai/status":
+            self._send_json(HTTPStatus.OK, AI_ENGINE.status())
+            return
         self._send_json(
             HTTPStatus.NOT_FOUND,
             {"status": "not_found", "message": "Unknown OpsPilot dashboard endpoint"},
@@ -1576,6 +1608,9 @@ class OpsPilotHandler(BaseHTTPRequestHandler):
             "/api/v1/integrations/validate",
             "/api/v1/incidents/prepare",
             "/api/v1/incidents/dispatch",
+            "/api/v1/ai/query",
+            "/api/v1/ai/remediations/prepare",
+            "/api/v1/ai/remediations/execute",
         }
         if path not in allowed_paths:
             self._send_json(
@@ -1588,7 +1623,12 @@ class OpsPilotHandler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
             length = 0
-        maximum_length = 4096 if path in {"/api/v1/dashboard", "/api/v1/commands/execute"} else 16384
+        maximum_length = 4096 if path in {
+            "/api/v1/dashboard",
+            "/api/v1/commands/execute",
+            "/api/v1/ai/remediations/prepare",
+            "/api/v1/ai/remediations/execute",
+        } else 16384
         if length <= 0 or length > maximum_length:
             self._send_json(
                 HTTPStatus.BAD_REQUEST,
@@ -1640,6 +1680,72 @@ class OpsPilotHandler(BaseHTTPRequestHandler):
             self._send_json(status, result)
             return
 
+        if path == "/api/v1/ai/query" or action == "ai_query":
+            question = payload.get("question")
+            spike_timestamp = payload.get("spike_timestamp")
+            if not isinstance(question, str) or not question.strip() or len(question) > 1000:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"status": "error", "message": "question must be between 1 and 1000 characters"},
+                )
+                return
+            if spike_timestamp is not None and (
+                not isinstance(spike_timestamp, str) or len(spike_timestamp) > 80
+            ):
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"status": "error", "message": "spike_timestamp must be an RFC3339 string"},
+                )
+                return
+            try:
+                result = AI_ENGINE.answer_question(
+                    question.strip(),
+                    COLLECTOR.snapshot(),
+                    forecasts=RCA_MANAGER.forecasts(),
+                    spike_timestamp=spike_timestamp,
+                )
+            except Exception as error:
+                self.log_error("AI query failure: %s", error)
+                self._send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"status": "error", "message": "OpsPilot could not complete the evidence analysis"},
+                )
+                return
+            self._send_json(HTTPStatus.OK, result)
+            return
+
+        if path == "/api/v1/ai/remediations/prepare" or action == "prepare_remediation":
+            action_id = payload.get("action_id")
+            if not isinstance(action_id, str) or len(action_id) > 80:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"status": "error", "message": "A valid action_id is required"},
+                )
+                return
+            try:
+                result = AI_ENGINE.prepare_remediation(action_id)
+            except ValueError as error:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"status": "error", "message": str(error)})
+                return
+            self._send_json(HTTPStatus.OK, result)
+            return
+
+        if path == "/api/v1/ai/remediations/execute" or action == "execute_remediation":
+            if self.headers.get("X-OpsPilot-Action", "") != "confirmed-remediation":
+                self._send_json(
+                    HTTPStatus.FORBIDDEN,
+                    {"status": "blocked", "message": "The remediation action header is required"},
+                )
+                return
+            status, result = AI_ENGINE.execute_remediation(
+                action_id=str(payload.get("action_id", "")),
+                approval_id=str(payload.get("approval_id", "")),
+                exact_command=str(payload.get("exact_command", "")),
+                confirmed=payload.get("confirm") is True,
+            )
+            self._send_json(status, result)
+            return
+
         command = payload.get("command") if isinstance(payload, dict) else None
         if not isinstance(command, str) or len(command) > 300:
             self._send_json(
@@ -1656,7 +1762,12 @@ class OpsPilotHandler(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path
         status = (
             HTTPStatus.OK
-            if path in {"/healthz", "/api/v1/dashboard", "/api/v1/integrations/status"}
+            if path in {
+                "/healthz",
+                "/api/v1/dashboard",
+                "/api/v1/integrations/status",
+                "/api/v1/ai/status",
+            }
             else HTTPStatus.NOT_FOUND
         )
         self.send_response(status)
@@ -1678,6 +1789,10 @@ def main() -> None:
         f"on {LISTEN_ADDRESS}:{LISTEN_PORT}",
         flush=True,
     )
+    try:
+        RCA_MANAGER.seed(METRIC_STORE.query("24h")["samples"])
+    except (OSError, sqlite3.Error, ValueError) as error:
+        print(f"ai_forecast_seed_error={type(error).__name__}: {error}", flush=True)
     sampler = threading.Thread(
         target=metric_sampler,
         name="opspilot-metric-sampler",
