@@ -1,0 +1,9 @@
+include ARCHITECTURE.md
+include SECURITY.md
+include OPERATIONS.md
+include Makefile
+recursive-include config *
+recursive-include deploy *
+recursive-include examples *.py *.json
+recursive-include tests *.py
+global-exclude *.py[cod]

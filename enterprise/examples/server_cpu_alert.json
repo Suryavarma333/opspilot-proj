@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "alert_id": "zabbix-78492011",
+  "kind": "server_cpu",
+  "state": "firing",
+  "source": "zabbix",
+  "node": "test-kcc-noc-vm",
+  "resource": "host",
+  "metric": "cpu.utilization.percent",
+  "severity": "SEV-1",
+  "observed_value": 99.4,
+  "threshold": 90,
+  "occurred_at": "2026-08-05T05:00:00Z",
+  "labels": {
+    "environment": "test"
+  },
+  "annotations": {
+    "trigger": "CPU utilization sustained for 60 seconds"
+  }
+}
+

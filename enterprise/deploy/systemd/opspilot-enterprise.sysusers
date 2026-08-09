@@ -1,0 +1,3 @@
+u opspilot - "OpsPilot Enterprise service account" /var/lib/opspilot-enterprise
+m opspilot systemd-journal
+

@@ -1,0 +1,22 @@
+{
+  "data": {
+    "interfaces": [
+      {
+        "ifName": "GigabitEthernet0/1",
+        "ifAlias": "Primary ISP uplink",
+        "ifAdminStatus": "up",
+        "ifOperStatus": "down",
+        "ifSpeed": 1000000000,
+        "ifMtu": 1500,
+        "ifInOctets": 991223344,
+        "ifOutOctets": 881122334,
+        "ifInErrors": 17,
+        "ifOutErrors": 3,
+        "ifInDiscards": 42,
+        "ifOutDiscards": 11,
+        "lastChange": "2026-08-05T04:58:12Z"
+      }
+    ]
+  }
+}
+

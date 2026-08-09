@@ -1,0 +1,39 @@
+[Unit]
+Description=OpsPilot Enterprise router interface poller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=opspilot
+Group=opspilot
+EnvironmentFile=/etc/opspilot-enterprise/opspilot.env
+ExecStart=/opt/opspilot-enterprise/venv/bin/opspilot-router-poller --interval 30
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=30s
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/var/lib/opspilot-enterprise
+
+[Install]
+WantedBy=multi-user.target
+

@@ -1,0 +1,38 @@
+[Unit]
+Description=OpsPilot Enterprise forensic incident worker
+After=network-online.target opspilot-enterprise-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=opspilot
+Group=opspilot
+SupplementaryGroups=systemd-journal
+EnvironmentFile=/etc/opspilot-enterprise/opspilot.env
+ExecStart=/opt/opspilot-enterprise/venv/bin/opspilot-worker
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=60s
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/var/lib/opspilot-enterprise
+
+[Install]
+WantedBy=multi-user.target
+
