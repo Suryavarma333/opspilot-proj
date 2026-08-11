@@ -92,6 +92,14 @@ The generic parser accepts common names such as `ifName`, `ifAdminStatus`, `ifOp
 `ifInErrors`, `ifOutErrors`, `ifInDiscards`, and `ifOutDiscards`. For a real vendor, add a focused
 parser for its published schema and keep the normalized models unchanged.
 
+### SNMP device inventory
+
+The Network Devices module adds switches and routers directly to OpsPilot without LibreNMS. It
+uses the existing SQLite ledger, encrypts v2c communities and SNMPv3 USM secrets with a
+server-held Fernet key, and exposes browser-safe CRUD routes under `/api/devices`. A separate
+async worker performs bounded ICMP and read-only MIB-2 polling for system uptime, identity, and
+interface operational-state counts. See `NETWORK_DEVICES.md` for configuration and nginx routing.
+
 ### AI RCA
 
 The master prompt treats every telemetry field as untrusted, enforces evidence hierarchy,

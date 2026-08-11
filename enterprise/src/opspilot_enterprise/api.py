@@ -12,7 +12,9 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from .config import Settings, load_settings
-from .factory import build_ledger, build_remediation
+from .devices import NetworkDeviceStore
+from .devices_api import create_devices_router
+from .factory import build_device_store, build_ledger, build_remediation
 from .ledger import IncidentLedger
 from .models import AlertEvent, RemediationRequest
 from .remediation import RemediationDenied, RemediationEngine
@@ -26,6 +28,7 @@ class AppState:
     settings: Settings
     ledger: IncidentLedger
     remediation: RemediationEngine
+    devices: NetworkDeviceStore
 
 
 def _authenticate(request: Request, body: bytes, state: AppState) -> None:
@@ -45,6 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         settings=configured,
         ledger=ledger,
         remediation=build_remediation(configured, ledger),
+        devices=build_device_store(configured, ledger),
     )
     app = FastAPI(
         title="OpsPilot Enterprise",
@@ -54,6 +58,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url=None if configured.environment == "production" else "/openapi.json",
     )
     app.state.opspilot = state
+    app.include_router(create_devices_router())
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next: Any) -> Any:

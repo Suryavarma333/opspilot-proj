@@ -57,6 +57,13 @@ class Settings(BaseSettings):
     router_interfaces_path: str = "/v1/devices/{device_id}/interfaces"
     router_timeout_seconds: float = Field(default=10, ge=1, le=60)
 
+    snmp_credential_key: SecretStr | None = None
+    snmp_poll_seconds: float = Field(default=30.0, ge=5, le=3600)
+    snmp_timeout_seconds: float = Field(default=2.0, ge=0.5, le=30)
+    snmp_retries: int = Field(default=1, ge=0, le=5)
+    snmp_max_concurrency: int = Field(default=20, ge=1, le=200)
+    icmp_timeout_seconds: float = Field(default=2.0, ge=0.5, le=30)
+
     jira_base_url: str | None = None
     jira_project_key: str | None = None
     jira_issue_type: str = "Incident"

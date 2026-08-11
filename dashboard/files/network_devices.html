@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <meta
+      name="description"
+      content="OpsPilot network device inventory and SNMP health monitoring"
+    />
+    <title>Network Devices — OpsPilot</title>
+    <link rel="stylesheet" href="/opspilot/assets/network_devices.css" />
+    <script defer src="/opspilot/assets/network_devices.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <header class="brand">
+          <a href="/opspilot/" aria-label="OpsPilot overview">
+            <span class="brand-mark" aria-hidden="true"><i></i><b>O</b></span>
+            <span><strong>OpsPilot</strong><small>FLUENT NOC INTELLIGENCE</small></span>
+          </a>
+          <button class="mobile-close" id="close-navigation" type="button" aria-label="Close menu">×</button>
+        </header>
+
+        <a class="node-card" href="/opspilot/">
+          <span class="node-icon" aria-hidden="true">▣</span>
+          <span><small>CONNECTED NODE</small><strong>opspilot-node-01</strong><em>Network operations</em></span>
+          <b><i></i> LIVE</b>
+        </a>
+
+        <nav aria-label="Main navigation">
+          <section>
+            <small>MONITOR</small>
+            <a href="/opspilot/"><span aria-hidden="true">⌂</span><b>Overview</b></a>
+            <a class="active" href="/opspilot/network-devices/" aria-current="page">
+              <span aria-hidden="true">⌘</span><b>Network devices</b>
+            </a>
+            <a href="/opspilot/"><span aria-hidden="true">⌁</span><b>Metrics explorer</b></a>
+            <a href="/opspilot/"><span aria-hidden="true">▤</span><b>Live logs</b></a>
+          </section>
+          <section>
+            <small>OPERATE</small>
+            <a href="/opspilot/"><span aria-hidden="true">⚒</span><b>Diagnostics</b></a>
+            <a href="/opspilot/"><span aria-hidden="true">♢</span><b>Incidents</b></a>
+          </section>
+          <section>
+            <small>INTELLIGENCE</small>
+            <a href="/opspilot/"><span aria-hidden="true">✦</span><b>OpsPilot AI</b></a>
+          </section>
+        </nav>
+
+        <div class="sidebar-health">
+          <span class="pulse-icon" aria-hidden="true">◉</span>
+          <span><strong>SNMP poller</strong><small>Read-only monitoring</small></span>
+          <i></i>
+        </div>
+        <footer><span>v1.0 NETWORK</span><b>ENCRYPTED</b></footer>
+      </aside>
+
+      <button class="nav-scrim" id="nav-scrim" type="button" aria-label="Close menu"></button>
+
+      <main class="workspace">
+        <header class="topbar">
+          <button class="menu-button" id="open-navigation" type="button" aria-label="Open menu">☰</button>
+          <div class="breadcrumb"><span>OpsPilot Node</span><i>/</i><b>Network devices</b></div>
+          <div class="top-actions">
+            <span class="live-indicator"><i></i> Live inventory</span>
+            <button class="refresh-button" id="refresh-devices" type="button" title="Refresh inventory">
+              <span aria-hidden="true">↻</span><b>Refresh</b>
+            </button>
+            <span class="engineer"><b>SV</b><span><strong>On-call Engineer</strong><small>Network operations</small></span></span>
+          </div>
+        </header>
+
+        <div class="content">
+          <section class="page-heading">
+            <div>
+              <span class="eyebrow">NETWORK OBSERVABILITY</span>
+              <h1>Network devices</h1>
+              <p>Monitor switch and router reachability, SNMP health, uptime, and interface state.</p>
+            </div>
+            <button class="primary-button" id="open-add-device" type="button">
+              <span aria-hidden="true">＋</span> Add device
+            </button>
+          </section>
+
+          <section class="summary-grid" aria-label="Device summary">
+            <article class="summary-card total">
+              <span class="summary-icon" aria-hidden="true">⌘</span>
+              <div><small>TOTAL DEVICES</small><strong id="summary-total">—</strong><p>Managed inventory</p></div>
+            </article>
+            <article class="summary-card up">
+              <span class="summary-icon" aria-hidden="true">↑</span>
+              <div><small>ICMP UP</small><strong id="summary-up">—</strong><p>Responding to ping</p></div>
+            </article>
+            <article class="summary-card down">
+              <span class="summary-icon" aria-hidden="true">!</span>
+              <div><small>ICMP DOWN</small><strong id="summary-down">—</strong><p>Requires attention</p></div>
+            </article>
+            <article class="summary-card snmp">
+              <span class="summary-icon" aria-hidden="true">S</span>
+              <div><small>SNMP HEALTHY</small><strong id="summary-snmp">—</strong><p>Returning MIB data</p></div>
+            </article>
+          </section>
+
+          <section class="inventory-panel">
+            <header>
+              <div><span class="eyebrow">LIVE INVENTORY</span><h2>Switches and routers</h2></div>
+              <label class="search-box">
+                <span aria-hidden="true">⌕</span>
+                <input id="device-search" type="search" placeholder="Search device or address" autocomplete="off" />
+              </label>
+            </header>
+
+            <div class="table-message" id="table-message" role="status">Loading network inventory…</div>
+            <div class="table-wrap" id="table-wrap" hidden>
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Live status</th>
+                    <th scope="col">Device</th>
+                    <th scope="col">Hostname / IP</th>
+                    <th scope="col">SNMP</th>
+                    <th scope="col">Uptime</th>
+                    <th scope="col">Interfaces</th>
+                    <th scope="col">Last poll</th>
+                    <th scope="col"><span class="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody id="device-rows"></tbody>
+              </table>
+            </div>
+
+            <div class="empty-state" id="empty-state" hidden>
+              <span aria-hidden="true">⌘</span>
+              <h3>No network devices yet</h3>
+              <p>Add your first switch or router to begin ICMP and SNMP monitoring.</p>
+              <button class="secondary-button" id="empty-add-device" type="button">Add first device</button>
+            </div>
+          </section>
+
+          <footer class="page-footer">
+            <span><i></i> Polling is read-only. OpsPilot never issues SNMP SET operations.</span>
+            <span>Credentials encrypted at rest · 30s default poll</span>
+          </footer>
+        </div>
+      </main>
+    </div>
+
+    <dialog class="device-dialog" id="device-dialog" aria-labelledby="dialog-title">
+      <form id="device-form" novalidate>
+        <header>
+          <span class="dialog-icon" aria-hidden="true">⌘</span>
+          <div><small>NETWORK INVENTORY</small><h2 id="dialog-title">Add network device</h2><p>Configure read-only ICMP and SNMP monitoring.</p></div>
+          <button class="dialog-close" id="close-add-device" type="button" aria-label="Close">×</button>
+        </header>
+
+        <div class="form-error" id="form-error" role="alert" hidden></div>
+
+        <div class="form-grid">
+          <label>
+            <span>Hostname or IP address <b>*</b></span>
+            <input name="hostname" type="text" required maxlength="253" placeholder="10.20.30.40" spellcheck="false" autocomplete="off" />
+            <small>IPv4, IPv6, or a resolvable DNS hostname</small>
+          </label>
+          <label>
+            <span>Device name <b>*</b></span>
+            <input name="device_name" type="text" required maxlength="128" placeholder="Core Switch 01" autocomplete="off" />
+            <small>A friendly inventory name</small>
+          </label>
+          <label>
+            <span>SNMP version <b>*</b></span>
+            <select name="snmp_version" id="snmp-version" required>
+              <option value="v2c">SNMP v2c</option>
+              <option value="v3">SNMP v3</option>
+            </select>
+            <small>Use v3 for authenticated and encrypted polling</small>
+          </label>
+          <label>
+            <span>SNMP port</span>
+            <input name="snmp_port" type="number" min="1" max="65535" value="161" required />
+            <small>UDP port, normally 161</small>
+          </label>
+        </div>
+
+        <fieldset id="v2c-fields">
+          <legend>SNMP v2c credentials</legend>
+          <label>
+            <span>Community string <b>*</b></span>
+            <div class="password-field">
+              <input name="community" id="community" type="password" maxlength="255" required autocomplete="new-password" placeholder="Read-only community" />
+              <button type="button" data-toggle-password="community" aria-label="Show community string">Show</button>
+            </div>
+            <small>Encrypted before it is stored. A read-only community is strongly recommended.</small>
+          </label>
+        </fieldset>
+
+        <fieldset id="v3-fields" hidden disabled>
+          <legend>SNMPv3 user security</legend>
+          <div class="form-grid">
+            <label>
+              <span>Username <b>*</b></span>
+              <input name="snmpv3_username" type="text" maxlength="64" autocomplete="off" placeholder="opspilot-monitor" />
+            </label>
+            <label>
+              <span>Security level <b>*</b></span>
+              <select name="snmpv3_security_level" id="v3-security-level">
+                <option value="authPriv">Authentication + privacy</option>
+                <option value="authNoPriv">Authentication, no privacy</option>
+                <option value="noAuthNoPriv">No authentication or privacy</option>
+              </select>
+            </label>
+            <label class="auth-field">
+              <span>Authentication protocol</span>
+              <select name="snmpv3_auth_protocol">
+                <option value="SHA256">SHA-256</option>
+                <option value="SHA384">SHA-384</option>
+                <option value="SHA512">SHA-512</option>
+                <option value="SHA224">SHA-224</option>
+                <option value="SHA">SHA-1 (legacy)</option>
+              </select>
+            </label>
+            <label class="auth-field">
+              <span>Authentication password <b>*</b></span>
+              <div class="password-field">
+                <input name="snmpv3_auth_password" id="v3-auth-password" type="password" minlength="8" maxlength="255" autocomplete="new-password" />
+                <button type="button" data-toggle-password="v3-auth-password" aria-label="Show authentication password">Show</button>
+              </div>
+            </label>
+            <label class="privacy-field">
+              <span>Privacy protocol</span>
+              <select name="snmpv3_priv_protocol">
+                <option value="AES128">AES-128</option>
+                <option value="AES192">AES-192</option>
+                <option value="AES256">AES-256</option>
+              </select>
+            </label>
+            <label class="privacy-field">
+              <span>Privacy password <b>*</b></span>
+              <div class="password-field">
+                <input name="snmpv3_priv_password" id="v3-priv-password" type="password" minlength="8" maxlength="255" autocomplete="new-password" />
+                <button type="button" data-toggle-password="v3-priv-password" aria-label="Show privacy password">Show</button>
+              </div>
+            </label>
+          </div>
+        </fieldset>
+
+        <footer>
+          <p><i aria-hidden="true">▣</i><span><strong>Secure storage</strong><small>Secrets are encrypted with the server-held OpsPilot credential key and are never returned by the API.</small></span></p>
+          <div><button class="secondary-button" id="cancel-add-device" type="button">Cancel</button><button class="primary-button" id="save-device" type="submit">Add device</button></div>
+        </footer>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  </body>
+</html>

@@ -11,10 +11,12 @@ requires-python = ">=3.11"
 license = "LicenseRef-Proprietary"
 authors = [{name = "OpsPilot Engineering"}]
 dependencies = [
+  "cryptography>=50,<51",
   "fastapi>=0.116,<1",
   "httpx>=0.28,<1",
   "pydantic>=2.11,<3",
   "pydantic-settings>=2.10,<3",
+  "pysnmp>=7.1.28,<8",
   "uvicorn[standard]>=0.35,<1",
 ]
 
@@ -35,6 +37,7 @@ opspilot-worker = "opspilot_enterprise.cli:worker_main"
 opspilot-router-poller = "opspilot_enterprise.cli:router_poller_main"
 opspilot-remediate = "opspilot_enterprise.cli:remediate_main"
 opspilot-import-legacy-ledger = "opspilot_enterprise.cli:import_legacy_main"
+opspilot-snmp-poller = "opspilot_enterprise.cli:snmp_poller_main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

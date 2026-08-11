@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import sys
 import time
@@ -13,6 +14,7 @@ import uvicorn
 from .api import create_app
 from .config import load_settings
 from .factory import (
+    build_device_store,
     build_flap_detector,
     build_ledger,
     build_orchestrator,
@@ -21,6 +23,7 @@ from .factory import (
 )
 from .logging import configure_logging
 from .models import RemediationRequest
+from .snmp_worker import SnmpPollingWorker
 from .worker import IncidentWorker
 
 
@@ -79,6 +82,29 @@ def router_poller_main() -> None:
         if arguments.once:
             return
         time.sleep(max(5, arguments.interval))
+
+
+def snmp_poller_main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--interval", type=float, default=None)
+    parser.add_argument("--once", action="store_true")
+    arguments = parser.parse_args()
+    settings = load_settings()
+    configure_logging(settings.log_level)
+    ledger = build_ledger(settings)
+    worker = SnmpPollingWorker(
+        store=build_device_store(settings, ledger),
+        poll_seconds=max(5.0, arguments.interval or settings.snmp_poll_seconds),
+        icmp_timeout_seconds=settings.icmp_timeout_seconds,
+        snmp_timeout_seconds=settings.snmp_timeout_seconds,
+        snmp_retries=settings.snmp_retries,
+        max_concurrency=settings.snmp_max_concurrency,
+    )
+    if arguments.once:
+        count = asyncio.run(worker.run_once())
+        print(json.dumps({"polled_devices": count}))
+        return
+    asyncio.run(worker.run_forever())
 
 
 def remediate_main() -> None:

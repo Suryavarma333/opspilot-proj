@@ -1,9 +1,11 @@
 include ARCHITECTURE.md
 include SECURITY.md
 include OPERATIONS.md
+include NETWORK_DEVICES.md
 include Makefile
 recursive-include config *
 recursive-include deploy *
 recursive-include examples *.py *.json
+recursive-include sql *.sql
 recursive-include tests *.py
 global-exclude *.py[cod]

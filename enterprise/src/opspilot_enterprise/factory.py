@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .config import Settings
+from .devices import CredentialCipher, NetworkDeviceStore
 from .evidence import EvidenceStore
 from .integrations import JiraClient, SlackWebhookClient
 from .ledger import IncidentLedger
@@ -17,6 +18,13 @@ def build_ledger(settings: Settings) -> IncidentLedger:
     ledger = IncidentLedger(settings.state_db)
     ledger.initialize()
     return ledger
+
+
+def build_device_store(settings: Settings, ledger: IncidentLedger) -> NetworkDeviceStore:
+    cipher = (
+        CredentialCipher(settings.snmp_credential_key) if settings.snmp_credential_key else None
+    )
+    return NetworkDeviceStore(ledger, cipher)
 
 
 def build_router(settings: Settings) -> RouterTelemetryClient | None:

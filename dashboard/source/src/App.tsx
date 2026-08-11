@@ -672,13 +672,14 @@ function LegacyHome() {
   </main>;
 }
 
-type FluentView = "pulse" | "metrics" | "services" | "logs" | "commands" | "users" | "security" | "incidents" | "ai";
+type FluentView = "pulse" | "metrics" | "devices" | "services" | "logs" | "commands" | "users" | "security" | "incidents" | "ai";
 type DetailMetric = "CPU" | "Memory" | "Root filesystem" | "System load" | null;
 
 const fluentNav: { group: string; items: { id: FluentView; label: string; badge?: string }[] }[] = [
   { group: "MONITOR", items: [
     { id: "pulse", label: "Overview" },
     { id: "metrics", label: "Metrics explorer" },
+    { id: "devices", label: "Network devices" },
     { id: "services", label: "Services" },
     { id: "logs", label: "Live logs", badge: "24" },
   ] },
@@ -695,6 +696,7 @@ function FluentIcon({ view }: { view: FluentView }) {
   const icons: Record<FluentView, React.ReactNode> = {
     pulse: <Apps24Regular />,
     metrics: <DataTrending24Regular />,
+    devices: <Server24Regular />,
     services: <Server24Regular />,
     logs: <DocumentText24Regular />,
     commands: <Wrench24Regular />,
@@ -1079,7 +1081,13 @@ export default function FluentOpsPilot() {
   useEffect(() => { const run = (event: Event) => setCommand((event as CustomEvent<CommandSpec>).detail); window.addEventListener("opspilot-command", run); return () => window.removeEventListener("opspilot-command", run); }, []);
   useEffect(() => { const key = (event: KeyboardEvent) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setSearchOpen(true); } if (event.key === "Escape") { setSearchOpen(false); setDetail(null); setCommand(null); } }; window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key); }, []);
   const toggleTheme = () => setTheme(current => { const next = current === "light" ? "dark" : "light"; document.documentElement.dataset.fluentTheme = next; window.localStorage.setItem("opspilot-fluent-theme", next); return next; });
-  const navigate = (next: FluentView) => { setView(next); if (next === "ai") setAiOpen(true); setMobileNav(false); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const navigate = (next: FluentView) => {
+    if (next === "devices") { window.location.assign("/opspilot/network-devices/"); return; }
+    setView(next);
+    if (next === "ai") setAiOpen(true);
+    setMobileNav(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
   const openAI = (question?: string) => { if (question) setAiQuestion(question); setAiOpen(true); };
   const searchResults = useMemo(() => { const q = globalSearch.toLowerCase(); return [...fluentNav.flatMap(group => group.items).filter(item => item.label.toLowerCase().includes(q)).map(item => ({ type: "view" as const, label: item.label, id: item.id, detail: "Open workspace" })), ...commands.filter(item => `${item.command} ${item.description}`.toLowerCase().includes(q)).slice(0,8).map(item => ({ type: "command" as const, label: item.command, id: item.id, detail: item.description }))].slice(0,12); }, [globalSearch]);
   const content = view === "pulse" ? <OverviewView samples={samples} historySamples={historySamples} historyRange={historyRange} setHistoryRange={setHistoryRange} historyLoading={historyLoading} setView={navigate} openDetail={setDetail} openJira={setJiraMetric} openAI={openAI} openRemediation={setRemediation} aiSignal={aiSignal} nodeState={nodeState} setNodeState={setNodeState} /> : view === "metrics" ? <MetricsWorkspace samples={samples} historySamples={historySamples} historyRange={historyRange} setHistoryRange={setHistoryRange} historyLoading={historyLoading} openDetail={setDetail} openJira={setJiraMetric} openAI={() => openAI()} /> : view === "commands" ? <CommandWorkspace run={setCommand} /> : view === "ai" ? <AIWorkspace run={setCommand} samples={samples} openAI={openAI} signal={aiSignal} /> : <DataWorkspace view={view as keyof typeof tableConfig} openJira={setJiraMetric} goCommands={() => navigate("commands")} />;
